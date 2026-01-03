@@ -2,6 +2,8 @@
 
 为 ChatBox 提供长期记忆能力的 OpenAI 兼容网关。
 
+个人小实验，希望让AI不要忘东西了。
+
 ## 功能
 
 - OpenAI API 兼容接口
