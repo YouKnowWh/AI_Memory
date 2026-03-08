@@ -45,4 +45,4 @@ python desktop_app.py
 - pywebview ≥ 4.0（EdgeChromium 后端）
 - httpx、sentence-transformers、faiss-cpu
 - duckduckgo-search（联网搜索）
-- pypinyin + jieba（内置中文输入法引擎）
+
