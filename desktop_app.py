@@ -12,17 +12,13 @@ desktop_app.py — AI Memory 桌面客户端入口
     python desktop_app.py
 """
 
-import bisect
 import http.server
 import json
 import os
-import pickle
 import socket
-import subprocess
 import sys
 import threading
-from typing import Any, Dict, List, Optional
-from urllib.parse import parse_qs, urlparse
+from typing import Dict, List, Optional
 
 import webview
 
@@ -30,11 +26,6 @@ from client_core import ClientCore
 
 # ──────────────────────────────────────────────────────────────────────────────
 CLIENT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "client")
-
-# ── IME 后端拼音引擎（全局状态）──────────────────────────────────────────────
-_ime_index: Dict[str, List[str]] = {}   # 拼音/简拼 → [候选词, ...]
-_ime_keys:  List[str]            = []   # 有序 key 列表，用于前缀二分查找
-_ime_ready  = threading.Event()          # 索引构建完成标志
 
 
 def _find_free_port(start: int = 9127) -> int:
@@ -49,183 +40,18 @@ def _find_free_port(start: int = 9127) -> int:
     return start
 
 
-def _build_ime_index() -> None:
-    """后台构建拼音→词语反向索引（jieba 词表 + pypinyin 音节映射）。
-
-    首次运行约需 20-40 秒；之后从磁盘缓存加载，几乎瞬间完成。
-    未就绪期间前端 JS 内置字典照常运行，不影响使用体验。
-    """
-    global _ime_index, _ime_keys
-    if sys.platform == "win32":
-        _ime_cache_dir = os.path.join(
-            os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "AI_Memory"
-        )
-    else:
-        _ime_cache_dir = os.path.expanduser("~/.cache")
-    cache_path = os.path.join(_ime_cache_dir, "aim_ime_v1.pkl")
-
-    # 尝试从缓存快速加载
-    if os.path.exists(cache_path):
-        try:
-            with open(cache_path, "rb") as f:
-                saved = pickle.load(f)
-            _ime_index = saved["index"]
-            _ime_keys  = saved["keys"]
-            _ime_ready.set()
-            print(f"[AI Memory IME] 索引已从缓存加载（共 {len(_ime_index)} 条拼音）")
-            return
-        except Exception:
-            pass
-
-    print("[AI Memory IME] 首次运行：正在构建拼音索引（约需 20-40 秒）…")
-    try:
-        import jieba
-        from pypinyin import Style, lazy_pinyin
-
-        jieba.initialize()
-        dict_path = os.path.join(os.path.dirname(jieba.__file__), "dict.txt")
-        if not os.path.exists(dict_path):
-            print("[AI Memory IME] 找不到 jieba 词典，跳过")
-            _ime_ready.set()
-            return
-
-        # 读取词典并按词频降序排列
-        entries: List = []
-        with open(dict_path, encoding="utf-8") as f:
-            for line in f:
-                parts = line.strip().split()
-                if len(parts) >= 2:
-                    try:
-                        entries.append((parts[0], int(parts[1])))
-                    except ValueError:
-                        pass
-        entries.sort(key=lambda x: -x[1])  # 高频词优先
-
-        idx: Dict[str, List[str]] = {}
-
-        def add_entry(key: str, word: str) -> None:
-            if key not in idx:
-                idx[key] = []
-            if word not in idx[key]:
-                idx[key].append(word)
-
-        seen: set = set()
-        for word, freq in entries:
-            if freq < 3:
-                continue
-            wlen = len(word)
-            if wlen == 1:
-                # 单字：直接用拼音作 key，频率已保证顺序
-                if word in seen:
-                    continue
-                seen.add(word)
-                py_parts = lazy_pinyin(word, style=Style.NORMAL, errors="ignore")
-                if not py_parts:
-                    continue
-                add_entry(py_parts[0], word)
-                continue
-            if not (wlen > 1):
-                continue
-            if word in seen:
-                continue
-            seen.add(word)
-            py_parts = lazy_pinyin(word, style=Style.NORMAL, errors="ignore")
-            if not py_parts:
-                continue
-            full_py = "".join(py_parts)
-            abbr_py = "".join(p[0] for p in py_parts if p)
-            add_entry(full_py, word)
-            if abbr_py != full_py:
-                add_entry(abbr_py, word)
-
-        keys = sorted(idx.keys())
-        _ime_index = idx
-        _ime_keys  = keys
-
-        # 持久化缓存
-        os.makedirs(_ime_cache_dir, exist_ok=True)
-        with open(cache_path, "wb") as f:
-            pickle.dump({"index": idx, "keys": keys}, f)
-
-        _ime_ready.set()
-        print(f"[AI Memory IME] 拼音索引构建完成（共 {len(idx)} 条拼音，{len(seen)} 个词语）")
-    except ImportError as e:
-        print(f"[AI Memory IME] 依赖缺失: {e}，将使用 JS 内置字典")
-        _ime_ready.set()
-    except Exception as e:
-        print(f"[AI Memory IME] 索引构建失败: {e}")
-        _ime_ready.set()
-
-
-def _lookup_ime(q: str, limit: int = 9) -> List[str]:
-    """在拼音索引中查找候选词（精确匹配 + 前缀二分查找）。"""
-    if not q or not _ime_index:
-        return []
-    seen: set = set()
-    result: List[str] = []
-
-    def absorb(words: List[str]) -> bool:
-        for w in words:
-            if w not in seen:
-                seen.add(w)
-                result.append(w)
-        return len(result) >= limit
-
-    # 精确匹配
-    if q in _ime_index:
-        if absorb(_ime_index[q]):
-            return result[:limit]
-
-    # 前缀匹配（二分定位起点，线性扫描同前缀段）
-    lo = bisect.bisect_left(_ime_keys, q)
-    for k in _ime_keys[lo:]:
-        if not k.startswith(q):
-            break
-        if k != q and absorb(_ime_index[k]):
-            return result[:limit]
-
-    return result[:limit]
-
-
 def _start_file_server(directory: str, port: int) -> None:
-    """在后台线程启动本地静态文件服务器，仅绑定 127.0.0.1。
-    同时处理 /api/ime 请求（拼音候选词查询 JSON 接口）。
-    """
+    """在后台线程启动本地静态文件服务器，仅绑定 127.0.0.1。"""
 
     class _Handler(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, directory=directory, **kwargs)
 
-        def do_GET(self):
-            if self.path.startswith("/api/ime"):
-                self._handle_ime()
-            else:
-                super().do_GET()
-
-        def _handle_ime(self):
-            try:
-                qs    = parse_qs(urlparse(self.path).query)
-                q     = (qs.get("q", [""])[0]).strip().lower()
-                limit = min(50, int(qs.get("limit", ["9"])[0]))
-                cands = _lookup_ime(q, limit)
-                body  = json.dumps(
-                    {"cands": cands, "ready": _ime_ready.is_set()},
-                    ensure_ascii=False,
-                ).encode("utf-8")
-            except Exception:
-                body = b'{"cands":[],"ready":false}'
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-
         def log_message(self, *args):
             pass  # 静默，不打印访问日志
 
     server = http.server.HTTPServer(("127.0.0.1", port), _Handler)
-    t = threading.Thread(target=server.serve_forever, daemon=True)
-    t.start()
+    threading.Thread(target=server.serve_forever, daemon=True).start()
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -412,57 +238,6 @@ def _setup_ime() -> None:
     print("[AI Memory] IME: JS 内置拼音  切换快捷键: Ctrl+Space")
 
 
-def _apply_dark_titlebar(*_) -> None:
-    """将 pywebview 窗口标题栏设为深色，与应用主题一致 (Windows 10 22H2+ / Windows 11)。"""
-    try:
-        import ctypes, time
-        time.sleep(0.15)  # 等待窗口句柄完全就绪
-        hwnd = ctypes.windll.user32.FindWindowW(None, "AI Memory")
-        if hwnd:
-            DWMWA_USE_IMMERSIVE_DARK_MODE = 20
-            val = ctypes.c_int(1)
-            ctypes.windll.dwmapi.DwmSetWindowAttribute(
-                hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE,
-                ctypes.byref(val), ctypes.sizeof(val),
-            )
-    except Exception:
-        pass
-
-
-def _get_system_scale() -> float:
-    """尝试读取系统 DPI/缩放比例，失败时返回 1.0。"""
-    # Windows：通过 ctypes 读取物理 DPI
-    if sys.platform == "win32":
-        try:
-            import ctypes
-            ctypes.windll.shcore.SetProcessDpiAwareness(2)  # PROCESS_PER_MONITOR_DPI_AWARE
-            dc = ctypes.windll.user32.GetDC(0)
-            dpi = ctypes.windll.gdi32.GetDeviceCaps(dc, 88)  # LOGPIXELSX
-            ctypes.windll.user32.ReleaseDC(0, dc)
-            return round(dpi / 96.0, 2)
-        except Exception:
-            return 1.0
-    # 1. GTK / Wayland 环境变量
-    for env in ("GDK_SCALE", "QT_SCALE_FACTOR"):
-        val = os.environ.get(env, "").strip()
-        if val:
-            try:
-                return float(val)
-            except ValueError:
-                pass
-    # 2. GNOME gsettings text-scaling-factor
-    try:
-        result = subprocess.run(
-            ["gsettings", "get", "org.gnome.desktop.interface", "text-scaling-factor"],
-            capture_output=True, text=True, timeout=2,
-        )
-        if result.returncode == 0:
-            return float(result.stdout.strip())
-    except Exception:
-        pass
-    return 1.25
-
-
 def main() -> None:
     if not os.path.isdir(CLIENT_DIR):
         print(f"[错误] 找不到客户端目录: {CLIENT_DIR}")
@@ -490,9 +265,6 @@ def main() -> None:
         )
 
     _setup_ime()
-    threading.Thread(target=_build_ime_index, daemon=True).start()
-    if sys.platform != "win32":
-        print(f"[AI Memory] GTK_IM_MODULE = {os.environ.get('GTK_IM_MODULE', 'NOT SET')}")
 
     port = _find_free_port(9127)
     _start_file_server(CLIENT_DIR, port)
