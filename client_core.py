@@ -57,7 +57,12 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "api_key": "",
     "model": "deepseek-chat",
     "temperature": 0.7,
-    "tool_web_search": "auto",   # "auto" | "true" | "false"
+    "tool_web_search": "auto",          # "auto" | "true" | "false"
+    "tool_web_search_engine": "ddg",    # "ddg" | "tavily" | "bing" | "brave" | "serp"
+    "tool_tavily_key": "",
+    "tool_bing_key": "",
+    "tool_brave_key": "",
+    "tool_serp_key": "",
     "tool_rag": False,
     "system_prompt": "",
     "theme": "dark",
@@ -97,6 +102,41 @@ def _needs_deep_think(text: str) -> bool:
     """判断用户是否明确要求深度推理。"""
     t = text.lower()
     return any(kw in t for kw in _DEEP_THINK_TRIGGERS)
+
+
+# 具有原生思考模式 API 的厂商（无需 system prompt 注入）
+_NATIVE_THINK_PROVIDERS = {"deepseek", "openai", "qwen", "gemini"}
+
+
+def _apply_deep_think(provider: str, model: str, payload: Dict) -> tuple:
+    """按厂商为 payload 配置原生深度思考参数，返回 (updated_payload, effective_model)。
+
+    各厂商实现：
+      deepseek → 切换模型 deepseek-reasoner
+      openai   → o 系列模型添加 reasoning_effort: "high"，去掉 temperature
+      qwen     → payload 加 enable_thinking: true
+      gemini   → payload 加 thinking_config.thinking_budget
+      其他     → 不修改（由调用方通过 system prompt 注入回退）
+    """
+    if provider == "deepseek":
+        return payload, "deepseek-reasoner"
+
+    if provider == "openai":
+        # o1 / o3 / o4-mini 等 o 系列推理模型
+        if re.match(r"^o\d", model):
+            payload.pop("temperature", None)
+            payload["reasoning_effort"] = "high"
+        return payload, model
+
+    if provider == "qwen":
+        payload["enable_thinking"] = True
+        return payload, model
+
+    if provider == "gemini":
+        payload["thinking_config"] = {"thinking_budget": 8192}
+        return payload, model
+
+    return payload, model
 
 
 def _strip_dsml(text: str) -> str:
@@ -318,6 +358,8 @@ class UpstreamClient:
         model: str,
         temperature: float,
         stop_flag: threading.Event,
+        deep_think: bool = False,
+        provider: str = "",
     ) -> Generator:
         """
         生成器，yield (event_type, data) 元组：
@@ -332,6 +374,9 @@ class UpstreamClient:
             "temperature": temperature,
             "stream":      True,
         }
+        if deep_think:
+            payload, model = _apply_deep_think(provider, model, payload)
+            payload["model"] = model  # 更新（deepseek 可能切换了模型名）
         try:
             with httpx.Client(
                 timeout=httpx.Timeout(connect=10.0, read=120.0, write=10.0, pool=5.0)
@@ -406,6 +451,28 @@ class ClientCore:
     def test_connection(self) -> Dict:
         return self._upstream.test_connection()
 
+    def test_web_search(self) -> Dict:
+        cfg    = self.get_config()
+        engine = cfg.get("tool_web_search_engine", "ddg")
+        key_map = {
+            "tavily": cfg.get("tool_tavily_key", ""),
+            "bing":   cfg.get("tool_bing_key", ""),
+            "brave":  cfg.get("tool_brave_key", ""),
+            "serp":   cfg.get("tool_serp_key", ""),
+        }
+        api_key = key_map.get(engine, "")
+        try:
+            from tools_adapter import invoke_tool
+            results = invoke_tool("web_search", {"query": "test", "engine": engine, "api_key": api_key, "max_results": 1})
+            if isinstance(results, list) and results:
+                return {"ok": True, "message": f"引擎 [{engine}] 可用，已成功获取结果"}
+            elif isinstance(results, dict) and results.get("error"):
+                return {"ok": False, "message": results["error"]}
+            else:
+                return {"ok": False, "message": "搜索未返回结果"}
+        except Exception as e:
+            return {"ok": False, "message": str(e)}
+
     def list_upstream_models(self) -> List[Dict]:
         return self._upstream.list_models()
 
@@ -461,14 +528,16 @@ class ClientCore:
         stop_flag: threading.Event,
     ) -> Generator:
         """
-        生成器，yield 流事件 dict，供 client_app.py 的后台线程消费：
-          {type: "start",           message_id, user_message_id}
-          {type: "status",          text}
+        生成器，yield 流事件 dict，供 desktop_app.py 的后台线程消费：
+          {type: "start",      message_id, user_message_id, model}
+          {type: "tool_start", tool, query}
+          {type: "tool_done",  tool, query, results, elapsed}
+          {type: "tool_error", tool, error}
           {type: "reasoning_chunk", text}
           {type: "content_chunk",   text}
-          {type: "done",            usage, message_id}
-          {type: "error",           message}
-          {type: "title_update",    conv_id, title}
+          {type: "done",       usage, message_id, model}
+          {type: "error",      message}
+          {type: "title_update", conv_id, title}
         """
         conv = self.store.get(conv_id)
         if not conv:
@@ -482,15 +551,18 @@ class ClientCore:
                 return
 
         model         = options.get("model")       or self.config.model
-        # 每对话独立配置优先于全局配置
         _c_temp = conv.get("temperature")  # None 表示未单独设置
         temperature   = float(options.get("temperature") or (_c_temp if _c_temp is not None else self.config.temperature))
         web_search_mode = options.get("tool_web_search") or self.config.get().get("tool_web_search", "auto")
         use_rag       = options.get("tool_rag") or self.config.get().get("tool_rag", False)
 
+        # ── 生成 ID（提前，确保 start 事件可立即发出）─────────────────────────
+        user_msg_id = "msg_" + uuid.uuid4().hex[:10]
+        ai_msg_id   = "msg_" + uuid.uuid4().hex[:10]
+
         # ── 构建消息列表 ──────────────────────────────────────────────────────
         history: List[Dict] = []
-        _c_sys = conv.get("system_prompt")  # None 表示未单独设置
+        _c_sys = conv.get("system_prompt")
         sys_prompt = (_c_sys if _c_sys is not None else self.config.get().get("system_prompt", "")).strip()
         if sys_prompt:
             history.append({"role": "system", "content": sys_prompt})
@@ -498,13 +570,27 @@ class ClientCore:
         for m in conv.get("messages", []):
             if m.get("role") not in ("user", "assistant", "system"):
                 continue
-            # 清除上游不接受的内部字段
             history.append({"role": m["role"], "content": m.get("content") or ""})
 
         history.append({"role": "user", "content": user_text})
 
+        # ── 立即发出 start，让前端建立消息气泡（工具块将插入其中）────────────
+        yield {"type": "start", "message_id": ai_msg_id, "user_message_id": user_msg_id, "model": model}
+
         # ── 前置工具执行 ──────────────────────────────────────────────────────
-        context_parts: List[str] = []
+        import datetime as _dt
+        context_parts: List[str] = [
+            f"[当前日期] 今天是 {_dt.date.today().strftime('%Y年%m月%d日')}，请以此为准回答所有时间相关问题。"
+        ]
+        cfg       = self.config.get()
+        web_engine   = cfg.get("tool_web_search_engine", "ddg")
+        tavily_key   = cfg.get("tool_tavily_key", "")
+        bing_key     = cfg.get("tool_bing_key", "")
+        brave_key    = cfg.get("tool_brave_key", "")
+        serp_key     = cfg.get("tool_serp_key", "")
+        # Route the engine-specific key
+        _engine_key_map = {"tavily": tavily_key, "bing": bing_key, "brave": brave_key, "serp": serp_key}
+        engine_api_key  = _engine_key_map.get(web_engine, "")
 
         should_search = (
             web_search_mode == "true"
@@ -512,19 +598,30 @@ class ClientCore:
         )
         if should_search:
             if _invoke_tool is not None:
-                yield {"type": "status", "text": "🔍 正在搜索…"}
+                search_query = user_text[:200]
+                t0 = time.time()
+                yield {"type": "tool_start", "tool": "web_search", "query": search_query}
                 try:
-                    raw = _invoke_tool("web_search", {"query": user_text[:200], "max_results": 5})
+                    raw = _invoke_tool("web_search", {
+                        "query":       search_query,
+                        "max_results": 5,
+                        "engine":      web_engine,
+                        "api_key":     engine_api_key,
+                    })
+                    elapsed = round((time.time() - t0) * 1000)
+                    results = raw if isinstance(raw, list) else None
+                    yield {"type": "tool_done", "tool": "web_search",
+                           "query": search_query, "results": results, "elapsed": elapsed}
                     context_parts.append(
                         _format_search_results(raw) if isinstance(raw, list) else str(raw)
                     )
                 except Exception as exc:
-                    yield {"type": "status", "text": f"搜索失败: {exc}"}
+                    yield {"type": "tool_error", "tool": "web_search", "error": str(exc)}
             else:
-                yield {"type": "status", "text": "⚠ 搜索插件未安装，已跳过"}
+                yield {"type": "tool_error", "tool": "web_search", "error": "搜索插件未安装，请运行: pip install ddgs"}
 
         if use_rag and _retrieve_context is not None:
-            yield {"type": "status", "text": "📚 检索记忆库…"}
+            yield {"type": "tool_start", "tool": "rag", "query": user_text[:100]}
             try:
                 hits = list(_retrieve_context(user_text, top_k=3))
                 if hits:
@@ -533,18 +630,27 @@ class ClientCore:
                         f"{h.get('body') or h.get('text') or str(h)}"
                         for h in hits
                     ]
-                    context_parts.append("[记忆库相关内容]\n" + "\n".join(rag_lines))
+                    context_parts.append("[知识库相关内容]\n" + "\n".join(rag_lines))
+                yield {"type": "tool_done", "tool": "rag",
+                       "query": user_text[:100], "results": hits if hits else None, "elapsed": 0}
             except Exception as exc:
-                yield {"type": "status", "text": f"记忆检索失败: {exc}"}
+                yield {"type": "tool_error", "tool": "rag", "error": str(exc)}
 
         if context_parts:
             history = _inject_context_to_system(history, "\n\n".join(context_parts))
 
-        # ── 保存用户消息 ──────────────────────────────────────────────────────
-        user_msg_id = "msg_" + uuid.uuid4().hex[:10]
-        ai_msg_id   = "msg_" + uuid.uuid4().hex[:10]
-        now = int(time.time())
+        # ── 深度思考 ─────────────────────────────────────────────────────────
+        deep_think = options.get("deep_think") or _needs_deep_think(user_text)
+        provider   = cfg.get("provider", "")
+        # 无原生思考 API 的厂商：降级到 system prompt 注入
+        if deep_think and provider not in _NATIVE_THINK_PROVIDERS:
+            history = _inject_context_to_system(
+                history,
+                "用户希望你启动深度思考模式，请尽可能进行详细的内心推理和分析再回答。"
+            )
 
+        # ── 保存用户消息 ──────────────────────────────────────────────────────
+        now = int(time.time())
         user_entry: Dict[str, Any] = {
             "id":         user_msg_id,
             "role":       "user",
@@ -553,7 +659,6 @@ class ClientCore:
         }
         conv["messages"].append(user_entry)
 
-        # 首条消息自动生成标题
         if len(conv["messages"]) == 1 and conv.get("title") == "New Chat":
             title = user_text.strip()[:50]
             if len(user_text) > 50:
@@ -564,15 +669,14 @@ class ClientCore:
         else:
             self.store.save(conv)
 
-        yield {"type": "start", "message_id": ai_msg_id, "user_message_id": user_msg_id, "model": model}
-
         # ── 流式上游调用 ──────────────────────────────────────────────────────
         full_content   = ""
         full_reasoning = ""
         usage: Dict    = {}
 
         for ev_type, ev_data in self._upstream.stream_chat(
-            history, model, temperature, stop_flag
+            history, model, temperature, stop_flag,
+            deep_think=deep_think, provider=provider
         ):
             if stop_flag.is_set():
                 break
@@ -590,13 +694,13 @@ class ClientCore:
 
         # ── 保存 AI 消息 ──────────────────────────────────────────────────────
         ai_entry: Dict[str, Any] = {
-            "id":               ai_msg_id,
-            "role":             "assistant",
-            "content":          full_content,
+            "id":                ai_msg_id,
+            "role":              "assistant",
+            "content":           full_content,
             "reasoning_content": full_reasoning,
-            "model":            model,
-            "usage":            usage,
-            "created_at":       int(time.time()),
+            "model":             model,
+            "usage":             usage,
+            "created_at":        int(time.time()),
         }
         conv["messages"].append(ai_entry)
         self.store.save(conv)

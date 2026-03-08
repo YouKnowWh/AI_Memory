@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AI Memory</title>
   <script>
-    document.documentElement.style.zoom = 1.5;
+    document.documentElement.style.zoom = 1;
   </script>
   <script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css" />
@@ -28,12 +28,13 @@
       --user-bubble:#1a3350;
       --r:          10px;
       --r-sm:       6px;
-      --sb-w:       260px;
+      --sb-w:       195px;
     }
     html {
       font-size: 15px;
       height: 100%;
     }
+    #frame { display: flex; flex-direction: column; height: 100%; }
 
     /* ── Reset ──────────────────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -59,12 +60,12 @@
     [hidden] { display: none !important; }
 
     /* ── Layout ─────────────────────────────────────────────────────────── */
-    #app { display: flex; height: 100%; overflow: hidden; }
+    #app { display: flex; flex: 1; overflow: hidden; }
 
     /* ── Sidebar ─────────────────────────────────────────────────────────── */
     #sidebar {
       width: var(--sb-w);
-      min-width: 160px;
+      min-width: 120px;
       max-width: 480px;
       background: var(--sb-bg);
       display: flex;
@@ -166,28 +167,108 @@
     }
     .conv-actions button:hover { color: var(--accent); border-color: var(--accent); }
 
-    .sb-footer {
-      padding: 10px 8px;
-      border-top: 1px solid var(--border);
+    /* ── Titlebar ───────────────────────────────────────────────────────── */
+    #titlebar {
+      height: 36px; min-height: 36px;
+      background: var(--sb-bg);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center;
+      -webkit-app-region: drag;
+      flex-shrink: 0; user-select: none;
     }
-    #settingsBtn {
-      width: 100%;
-      padding: 9px 12px;
-      border-radius: var(--r-sm);
-      background: none;
-      border: none;
-      color: var(--muted);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 13px;
-      transition: background .12s, color .12s;
+    .tb-logo {
+      display: flex; align-items: center; gap: 6px;
+      padding: 0 0 0 12px;
+      color: var(--accent); font-size: 13px; font-weight: 700;
     }
-    #settingsBtn:hover { background: var(--hover); color: var(--text); }
+    .tb-logo svg { width: 16px; height: 16px; flex-shrink: 0; }
+    .tb-spacer { flex: 1; }
+    .tb-btn {
+      -webkit-app-region: no-drag;
+      width: 46px; height: 36px;
+      background: none; border: none; color: var(--muted);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background .12s, color .12s; flex-shrink: 0;
+    }
+    .tb-btn:hover { background: var(--hover); color: var(--text); }
+    .tb-btn.tb-close:hover { background: #c42b1c; color: #fff; }
+    .tb-btn svg { width: 10px; height: 10px; pointer-events: none; }
+
+    /* ── Icon bar ───────────────────────────────────────────────────────── */
+    #iconBar {
+      width: 44px; background: var(--sb-bg);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      align-items: center; padding: 8px 0;
+      flex-shrink: 0; gap: 2px;
+    }
+    .ib-btn {
+      width: 36px; height: 36px;
+      background: none; border: none; border-radius: var(--r-sm);
+      color: var(--muted); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .12s, color .12s; flex-shrink: 0;
+    }
+    .ib-btn:hover { background: var(--hover); color: var(--text); }
+    .ib-btn.active { background: var(--accent-bg); color: var(--accent); }
+    .ib-btn:disabled { opacity: .35; cursor: not-allowed; pointer-events: none; }
+    .ib-btn svg { width: 18px; height: 18px; pointer-events: none; }
+    .ib-spacer { flex: 1; }
+    .ib-sep { width: 24px; height: 1px; background: var(--border); margin: 4px 0; }
+    .ib-logo {
+      width: 36px; height: 36px; margin-bottom: 6px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .ib-logo svg { width: 22px; height: 22px; }
+
+    /* ── Sidebar panels ─────────────────────────────────────────────────── */
+    .sb-panel { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+    .sb-panel-hd {
+      padding: 9px 10px 9px 14px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .sb-panel-title { font-size: 13px; font-weight: 600; color: var(--muted); }
+
+    /* Settings sub-nav in sidebar */
+    #sbPanelSettings { overflow: hidden; }
+    .sp-nav { display: flex; flex-direction: column; padding: 6px 0; }
+    .sp-nav-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 9px 14px; font-size: 13px;
+      color: var(--muted); cursor: pointer;
+      border-radius: 0; transition: background .12s, color .12s;
+      border: none; background: none; width: 100%; text-align: left;
+    }
+    .sp-nav-item:hover { background: var(--hover); color: var(--text); }
+    .sp-nav-item.active { background: var(--accent-bg); color: var(--accent); }
+    .sp-nav-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: .7; }
+    .sp-nav-item.active svg { opacity: 1; }
+
+    /* Settings view in main area */
+    #settingsView {
+      display: none; flex: 1; flex-direction: column; overflow: hidden;
+      background: var(--bg);
+    }
+    #settingsView.visible { display: flex; }
+    .sv-header {
+      height: 52px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 24px;
+      font-size: 15px; font-weight: 600; flex-shrink: 0;
+    }
+    .sv-body {
+      flex: 1; overflow-y: auto; padding: 24px;
+      max-width: 600px;
+    }
+    .sv-footer {
+      padding: 12px 24px; border-top: 1px solid var(--border);
+      display: flex; gap: 8px; justify-content: flex-end; flex-shrink: 0;
+    }
 
     /* ── Main area ──────────────────────────────────────────────────────── */
-    #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+    #chatView { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
 
     .chat-header {
       height: 52px;
@@ -367,6 +448,79 @@
     /* Blinking cursor during stream */
     .cursor { display: inline-block; animation: blink 1s step-end infinite; }
     @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+
+    /* Tool call blocks (inside assistant message) */
+    .tool-block {
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      margin-bottom: 8px;
+      font-size: 13px;
+      overflow: hidden;
+    }
+    .tool-block-hd {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 12px;
+      cursor: pointer;
+      user-select: none;
+      transition: background .12s;
+    }
+    .tool-block-hd:hover { background: var(--hover); }
+    .tb-label { flex: 1; font-weight: 500; color: var(--text); font-size: 13px; }
+    .tb-ok  { color: var(--green);  display: flex; align-items: center; }
+    .tb-err { color: var(--danger); font-size: 13px; }
+    .tb-arrow { font-size: 10px; opacity: .5; transition: transform .18s; margin-left: 2px; }
+    .tool-block.open .tb-arrow { transform: rotate(90deg); }
+    .tool-block-body {
+      display: none;
+      padding: 4px 12px 12px;
+      border-top: 1px solid var(--border);
+    }
+    .tool-block.open .tool-block-body { display: block; }
+    .tb-query { font-size: 12px; color: var(--muted); margin-bottom: 8px; line-height: 1.6; }
+    .tb-query em { color: var(--text); font-style: normal; }
+    .tb-results {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      scrollbar-width: thin;
+    }
+    .tb-result-card {
+      min-width: 168px;
+      max-width: 200px;
+      flex-shrink: 0;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 7px 9px;
+      font-size: 12px;
+      background: var(--surface);
+      cursor: pointer;
+      transition: border-color .12s;
+    }
+    .tb-result-card:hover { border-color: var(--accent); }
+    .rc-idx { color: var(--accent); font-weight: 600; margin-right: 3px; }
+    .rc-title {
+      display: block; color: var(--text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      margin-bottom: 2px;
+    }
+    .rc-url {
+      display: block; color: var(--muted); font-size: 11px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    /* Settings tool category header */
+    .tool-cat-hd {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .5px;
+      color: var(--muted);
+      text-transform: uppercase;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 14px;
+    }
 
     /* Message actions (always visible) */
     .msg-actions {
@@ -686,6 +840,8 @@
     select { cursor: pointer; appearance: none; }
     .pw-wrap { position: relative; }
     .pw-wrap input { padding-right: 36px; }
+    .pw-wrap input[type=password]::-ms-reveal,
+    .pw-wrap input[type=password]::-ms-clear { display: none; }
     .eye-btn {
       position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
       background: none; border: none; color: var(--muted); cursor: pointer;
@@ -777,13 +933,21 @@
       text-transform: uppercase; letter-spacing: .05em;
       position: sticky; top: 0; background: var(--card);
     }
-    .mp-provider-hdr-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .mp-provider-hdr-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
     .mp-model-row {
       padding: 5px 12px 5px 26px; font-size: 13px;
       cursor: pointer; color: var(--text); transition: background .1s;
     }
     .mp-model-row:hover { background: var(--hover); }
     .mp-model-row.active { color: var(--accent); font-weight: 600; }
+    .mp-provider-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 12px; font-size: 12px; font-weight: 600;
+      cursor: pointer; color: var(--text); transition: background .1s;
+    }
+    .mp-provider-row:hover { background: var(--hover); }
+    .mp-provider-row.active { color: var(--accent); }
+    .mp-row-hint { margin-left: auto; font-size: 11px; color: var(--muted); font-weight: 400; }
     .mp-search-bar { padding: 7px 9px; border-top: 1px solid var(--border); flex-shrink: 0; }
     input.mp-search {
       width: 100%; padding: 6px 10px; background: var(--surface);
@@ -860,29 +1024,300 @@
   </style>
 </head>
 <body>
-<div id="app">
+<div id="frame">
+
+  <!-- ── Titlebar ─────────────────────────────────────────────────────────── -->
+  <div id="titlebar">
+    <div class="tb-logo">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13z"/>
+        <path d="M5.5 8.5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5S9.38 11 8 11s-2.5-1.12-2.5-2.5z"/>
+      </svg>
+      <span>AI Memory</span>
+    </div>
+    <div class="tb-spacer"></div>
+    <button class="tb-btn" title="最小化" onclick="api()?.win_minimize()">
+      <svg viewBox="0 0 10 10" fill="currentColor"><rect x="0" y="4.5" width="10" height="1"/></svg>
+    </button>
+    <button class="tb-btn" id="tbMaxBtn" title="最大化" onclick="tbToggleMax()">
+      <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1"><rect x=".5" y=".5" width="9" height="9"/></svg>
+    </button>
+    <button class="tb-btn tb-close" title="关闭" onclick="api()?.win_close()">
+      <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5">
+        <line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/>
+      </svg>
+    </button>
+  </div>
+
+  <div id="app">
+
+  <!-- ── Icon bar ───────────────────────────────────────────────────────────── -->
+  <div id="iconBar">
+    <!-- 品牌图标（点阵 AI 风格，不可点击） -->
+    <div class="ib-logo" title="AI Memory">
+      <svg viewBox="0 0 20 20" fill="none" stroke="var(--accent)" stroke-width="1.4">
+        <circle cx="4"  cy="4"  r="1.4" fill="var(--accent)" stroke="none"/>
+        <circle cx="10" cy="4"  r="1.4" fill="var(--accent)" stroke="none"/>
+        <circle cx="16" cy="4"  r="1.4" fill="var(--accent)" stroke="none"/>
+        <circle cx="4"  cy="10" r="1.4" fill="var(--accent)" stroke="none"/>
+        <circle cx="10" cy="10" r="2"   fill="none" stroke="var(--accent)"/>
+        <circle cx="16" cy="10" r="1.4" fill="var(--accent)" stroke="none"/>
+        <circle cx="4"  cy="16" r="1.4" fill="var(--accent)" stroke="none"/>
+        <circle cx="10" cy="16" r="1.4" fill="var(--accent)" stroke="none"/>
+        <circle cx="16" cy="16" r="1.4" fill="var(--accent)" stroke="none"/>
+        <line x1="4" y1="4"  x2="10" y2="10" stroke-opacity=".4"/>
+        <line x1="16" y1="4"  x2="10" y2="10" stroke-opacity=".4"/>
+        <line x1="4" y1="16" x2="10" y2="10" stroke-opacity=".4"/>
+        <line x1="16" y1="16" x2="10" y2="10" stroke-opacity=".4"/>
+      </svg>
+    </div>
+    <!-- 对话 -->
+    <button class="ib-btn active" data-panel="conv" title="对话" onclick="selectSidebarPanel('conv')">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M3 4.5A1.5 1.5 0 0 1 4.5 3h11A1.5 1.5 0 0 1 17 4.5v8A1.5 1.5 0 0 1 15.5 14H7l-4 3V4.5z"/>
+      </svg>
+    </button>
+    <div class="ib-spacer"></div>
+    <!-- 知识库（开发中） -->
+    <button class="ib-btn" disabled title="知识库（即将推出）">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M4 4h12v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4z"/>
+        <path d="M4 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2"/>
+        <line x1="7" y1="9" x2="13" y2="9"/><line x1="7" y1="12" x2="11" y2="12"/>
+      </svg>
+    </button>
+    <div class="ib-sep"></div>
+    <!-- API控制台（开发中） -->
+    <button class="ib-btn" disabled title="API 控制台（即将推出）">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+        <polyline points="5,7 9,10 5,13"/>
+        <line x1="11" y1="13" x2="15" y2="13"/>
+      </svg>
+    </button>
+    <!-- 设置 -->
+    <button class="ib-btn" data-panel="settings" title="设置" onclick="openSettings()">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="10" cy="10" r="2.5"/>
+        <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.22 4.22l1.42 1.42M14.36 14.36l1.42 1.42M4.22 15.78l1.42-1.42M14.36 5.64l1.42-1.42"/>
+      </svg>
+    </button>
+  </div>
 
   <!-- ── Sidebar ──────────────────────────────────────────────────────────── -->
   <aside id="sidebar">
-    <div class="sb-header">
-      <div class="logo">
-        <span class="logo-text">AI Memory</span>
+    <!-- 对话列表面板 -->
+    <div id="sbPanelConv" class="sb-panel">
+      <div class="sb-panel-hd">
+        <span class="sb-panel-title">对话</span>
+        <button id="newChatBtn" title="新对话" onclick="newChat()">+</button>
       </div>
-      <button id="newChatBtn" title="新对话" onclick="newChat()">+</button>
+      <div id="convList"></div>
     </div>
-
-    <div id="convList"></div>
-
-    <div class="sb-footer">
-      <button id="settingsBtn" onclick="openSettings()">
-        <span>⚙</span><span>设置</span>
-      </button>
-    </div>
+    <!-- 设置子导航面板 -->
+    <div id="sbPanelSettings" class="sb-panel" style="display:none">
+      <div class="sb-panel-hd">
+        <span class="sb-panel-title">设置</span>
+      </div>
+      <nav class="sp-nav">
+        <button class="sp-nav-item active" data-tab="api" onclick="switchSettingsTab('api',this)">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+            <circle cx="8" cy="8" r="2"/>
+            <path d="M8 1v2M8 13v2M1 8h2M13 8h2M2.93 2.93l1.42 1.42M11.65 11.65l1.42 1.42M2.93 13.07l1.42-1.42M11.65 4.35l1.42-1.42"/>
+          </svg>
+          API 配置
+        </button>
+        <button class="sp-nav-item" data-tab="tools" onclick="switchSettingsTab('tools',this)">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+            <path d="M9.5 2a4 4 0 0 1-4.9 5.4L2 10l4 4 2.6-2.6A4 4 0 1 1 9.5 2z"/>
+          </svg>
+          工具
+        </button>
+        <button class="sp-nav-item" data-tab="memory" onclick="switchSettingsTab('memory',this)">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+            <path d="M3 2h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/>
+            <line x1="5" y1="6" x2="11" y2="6"/><line x1="5" y1="9" x2="9" y2="9"/>
+          </svg>
+          知识库
+        </button>
+      </nav>
+    </div><!-- #sbPanelSettings -->
   </aside>
   <div id="resizeHandle"></div>
 
   <!-- ── Main ─────────────────────────────────────────────────────────────── -->
   <main id="main">
+
+    <!-- ── Settings view（叠加在 main 内，设置模式时显示） ─────────────────── -->
+    <div id="settingsView">
+      <div class="sv-header" id="svHeader">API 配置</div>
+      <div class="sv-body">
+        <!-- API tab -->
+        <div id="tabApi">
+          <div class="field">
+            <label>模型</label>
+            <div class="mp-wrap">
+              <button class="mp-trigger" id="mpTrigger" type="button" onclick="toggleModelPicker(event)">
+                <span class="mp-dot" id="mpDot" style="background:#58a6ff"></span>
+                <span id="mpLabel">DeepSeek · deepseek-chat</span>
+                <span class="mp-chevron">▾</span>
+              </button>
+              <div class="mp-panel" id="mpPanel">
+                <div class="mp-list" id="mpList"></div>
+              </div>
+            </div>
+            <input type="hidden" id="sModel" />
+            <input type="hidden" id="sPickedProvider" value="deepseek" />
+          </div>
+          <div class="field" id="customUrlField" style="display:none">
+            <label>Base URL</label>
+            <input type="text" id="sBaseUrl" placeholder="https://your-api-host.com/v1" />
+          </div>
+          <div class="field">
+            <label>API Key</label>
+            <div class="pw-wrap">
+              <input type="password" id="sApiKey" placeholder="sk-xxxxxxxxxxxxxxxx" />
+              <button class="eye-btn" onclick="togglePw('sApiKey',this)">
+                <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14">
+                  <path d="M8 2.5C4 2.5 1 8 1 8s3 5.5 7 5.5S15 8 15 8 12 2.5 8 2.5zm0 9A3.5 3.5 0 1 1 8 4.5a3.5 3.5 0 0 1 0 7zm0-5.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/>
+                </svg>
+              </button>
+            </div>
+            <p class="hint" id="sApiKeyHint" style="display:none;color:var(--green)">✓ Ollama 本地服务，无需 API Key</p>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;">
+            <button id="fetchModelsBtn" class="btn-secondary" type="button" style="font-size:13px;padding:7px 14px;" onclick="fetchAndShowModels()">
+              <span id="fetchModelsSpinner" style="display:none;width:12px;height:12px;border:2px solid rgba(255,255,255,.2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;margin-right:4px;"></span>
+              验证并刷新模型列表
+            </button>
+            <span id="fetchModelsStatus" style="font-size:12px;"></span>
+          </div>
+          <div class="grid-2">
+            <div class="field">
+              <label>Temperature</label>
+              <input type="number" id="sTemp" value="0.7" min="0" max="2" step="0.05" />
+              <p class="hint">0 = 精确，1 = 均衡，2 = 创意</p>
+            </div>
+          </div>
+          <div class="field">
+            <label>系统提示词 (System Prompt)</label>
+            <textarea id="sSystemPrompt" placeholder="可选，在此描述 AI 的角色与行为规范…" rows="3"></textarea>
+          </div>
+          <div id="connAlert"></div>
+        </div>
+        <!-- Tools tab -->
+        <div id="tabTools" hidden>
+          <div class="tool-cat-hd">联网</div>
+          <div class="field" style="margin-bottom:14px">
+            <label>搜索引擎</label>
+            <div class="mp-wrap">
+              <button class="mp-trigger" id="sepTrigger" type="button" onclick="toggleSepPicker(event)">
+                <span class="mp-dot" id="sepDot" style="background:#ff6900"></span>
+                <span id="sepLabel">DuckDuckGo</span>
+                <span class="mp-chevron">▾</span>
+              </button>
+              <div class="mp-panel" id="sepPanel">
+                <div class="mp-list" id="sepList"></div>
+              </div>
+            </div>
+            <input type="hidden" id="sWebEngine" value="ddg" />
+          </div>
+          <!-- Engine API key rows (shown based on selected engine) -->
+          <div class="se-key-row field" id="seKeyTavily" style="display:none;margin-bottom:14px">
+            <label>Tavily API Key</label>
+            <div class="pw-wrap">
+              <input type="password" id="sTavilyKey" placeholder="tvly-…" autocomplete="off" />
+              <button class="eye-btn" onclick="togglePw('sTavilyKey',this)">
+                <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M8 2.5C4 2.5 1 8 1 8s3 5.5 7 5.5S15 8 15 8 12 2.5 8 2.5zm0 9A3.5 3.5 0 1 1 8 4.5a3.5 3.5 0 0 1 0 7zm0-5.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="se-key-row field" id="seKeyBing" style="display:none;margin-bottom:14px">
+            <label>Bing API Key <span style="font-size:11px;color:var(--muted);font-weight:400">— Azure Cognitive Services</span></label>
+            <div class="pw-wrap">
+              <input type="password" id="sBingKey" placeholder="请输入 Azure Bing 订阅密钥" autocomplete="off" />
+              <button class="eye-btn" onclick="togglePw('sBingKey',this)">
+                <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M8 2.5C4 2.5 1 8 1 8s3 5.5 7 5.5S15 8 15 8 12 2.5 8 2.5zm0 9A3.5 3.5 0 1 1 8 4.5a3.5 3.5 0 0 1 0 7zm0-5.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="se-key-row field" id="seKeyBrave" style="display:none;margin-bottom:14px">
+            <label>Brave Search API Key</label>
+            <div class="pw-wrap">
+              <input type="password" id="sBraveKey" placeholder="BSA…" autocomplete="off" />
+              <button class="eye-btn" onclick="togglePw('sBraveKey',this)">
+                <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M8 2.5C4 2.5 1 8 1 8s3 5.5 7 5.5S15 8 15 8 12 2.5 8 2.5zm0 9A3.5 3.5 0 1 1 8 4.5a3.5 3.5 0 0 1 0 7zm0-5.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="se-key-row field" id="seKeySerp" style="display:none;margin-bottom:14px">
+            <label>SerpAPI Key <span style="font-size:11px;color:var(--muted);font-weight:400">— Google 搜索</span></label>
+            <div class="pw-wrap">
+              <input type="password" id="sSerpKey" placeholder="请输入 SerpAPI Key" autocomplete="off" />
+              <button class="eye-btn" onclick="togglePw('sSerpKey',this)">
+                <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M8 2.5C4 2.5 1 8 1 8s3 5.5 7 5.5S15 8 15 8 12 2.5 8 2.5zm0 9A3.5 3.5 0 1 1 8 4.5a3.5 3.5 0 0 1 0 7zm0-5.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="toggle-row">
+            <div>
+              <div class="toggle-label">联网搜索</div>
+              <div class="toggle-hint">自动检测问题是否需要实时信息后搜索</div>
+            </div>
+            <select id="sWebSearch" style="width:110px">
+              <option value="auto">自动</option>
+              <option value="true">总是</option>
+              <option value="false">禁用</option>
+            </select>
+          </div>
+          <div style="margin-top:12px;display:flex;align-items:center;gap:10px">
+            <button id="testWebBtn" class="btn-secondary" type="button" onclick="testWebSearch()" style="font-size:13px">测试联网</button>
+            <div id="connToolAlert" style="font-size:12px"></div>
+          </div>
+          <div style="height:20px"></div>
+          <div class="toggle-row">
+            <div>
+              <div class="toggle-label">默认开启知识库检索</div>
+              <div class="toggle-hint">每次对话自动从向量库召回相关片段</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="sRag" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+        <!-- Memory tab -->
+        <div id="tabMemory" hidden>
+          <div class="field">
+            <label>内容 (必填)</label>
+            <textarea id="mText" placeholder="粘贴需要 AI 长期记住的内容…" rows="5"></textarea>
+          </div>
+          <div class="grid-2">
+            <div class="field">
+              <label>标题 (可选)</label>
+              <input type="text" id="mTitle" placeholder="例如：项目背景" />
+            </div>
+            <div class="field">
+              <label>来源 (可选)</label>
+              <input type="text" id="mSource" placeholder="例如：notion/文档" />
+            </div>
+          </div>
+          <button class="btn-primary" onclick="addMemory()" style="margin-top:4px">+ 添加到知识库</button>
+          <div id="memAlert"></div>
+          <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+            <p style="font-size:12px;color:var(--muted);line-height:1.8">
+              知识库使用本地 FAISS 向量索引，数据保存在 <code style="font-size:11px">./data/faiss.index</code>。
+              首次使用时会自动下载嵌入模型（约 100 MB）。
+            </p>
+          </div>
+        </div>
+      </div><!-- .sv-body -->
+      <div class="sv-footer">
+        <button id="testConnBtn" class="btn-secondary" onclick="testConn()">测试连接</button>
+        <button class="btn-primary" onclick="saveSettings()">保存</button>
+      </div>
+    </div><!-- #settingsView -->
+
+    <div id="chatView" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
     <div class="chat-header">
       <span id="chatTitle">AI Memory</span>
       <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
@@ -919,8 +1354,8 @@
       <div class="input-toolbar">
         <button id="webSearchBtn" class="tool-toggle" title="联网搜索"
                 onclick="toggleTool(this)">搜索</button>
-        <button id="ragBtn" class="tool-toggle" title="记忆库检索"
-                onclick="toggleTool(this)">记忆</button>
+        <button id="ragBtn" class="tool-toggle" title="知识库检索"
+                onclick="toggleTool(this)">知识</button>
         <button id="deepThinkBtn" class="tool-toggle" style="display:none"
                 title="深度思考（使用 deepseek-reasoner）"
                 onclick="toggleTool(this)">深思</button>
@@ -931,141 +1366,12 @@
         <button id="sendBtn" title="发送 (Enter)" onclick="sendMessage()">▶</button>
       </div>
     </div>
+
+    </div><!-- #chatView -->
   </main>
 
-</div>
-
-<!-- ── Settings Modal ──────────────────────────────────────────────────────── -->
-<div id="settingsModal" class="modal-overlay" style="display:none"
-     onclick="if(event.target===this)closeSettings()">
-  <div class="modal-panel">
-    <div class="modal-header">
-      <span>⚙ 设置</span>
-      <button class="close-btn" onclick="closeSettings()">×</button>
-    </div>
-
-    <div class="modal-tabs">
-      <button class="modal-tab active" onclick="switchTab('api',this)">API 配置</button>
-      <button class="modal-tab" onclick="switchTab('tools',this)">工具</button>
-      <button class="modal-tab" onclick="switchTab('memory',this)">记忆库</button>
-    </div>
-
-    <div class="modal-body">
-      <!-- API tab -->
-      <div id="tabApi">
-        <!-- Combined model picker -->
-        <div class="field">
-          <label>模型</label>
-          <div class="mp-wrap">
-            <button class="mp-trigger" id="mpTrigger" type="button" onclick="toggleModelPicker(event)">
-              <span class="mp-dot" id="mpDot" style="background:#58a6ff"></span>
-              <span id="mpLabel">DeepSeek · deepseek-chat</span>
-              <span class="mp-chevron">▾</span>
-            </button>
-            <div class="mp-panel" id="mpPanel">
-              <div class="mp-list" id="mpList"></div>
-              <div class="mp-search-bar">
-                <input type="text" class="mp-search" id="mpSearch" placeholder="🔍 搜索模型…" oninput="filterModels(this.value)" />
-              </div>
-            </div>
-          </div>
-          <input type="hidden" id="sModel" />
-          <input type="hidden" id="sPickedProvider" value="deepseek" />
-        </div>
-        <!-- Custom Base URL -->
-        <div class="field" id="customUrlField" style="display:none">
-          <label>Base URL</label>
-          <input type="text" id="sBaseUrl" placeholder="https://your-api-host.com/v1" />
-        </div>
-        <!-- API Key -->
-        <div class="field">
-          <label>API Key</label>
-          <div class="pw-wrap">
-            <input type="password" id="sApiKey" placeholder="sk-xxxxxxxxxxxxxxxx" />
-            <button class="eye-btn" onclick="togglePw('sApiKey',this)">显</button>
-          </div>
-          <p class="hint" id="sApiKeyHint" style="display:none;color:var(--green)">✓ Ollama 本地服务，无需 API Key</p>
-        </div>
-        <!-- Fetch / verify -->
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;">
-          <button id="fetchModelsBtn" class="btn-secondary" type="button" style="font-size:13px;padding:7px 14px;" onclick="fetchAndShowModels()">
-            <span id="fetchModelsSpinner" style="display:none;width:12px;height:12px;border:2px solid rgba(255,255,255,.2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;margin-right:4px;"></span>
-            验证并刷新模型列表
-          </button>
-          <span id="fetchModelsStatus" style="font-size:12px;"></span>
-        </div>
-        <div class="grid-2">
-          <div class="field">
-            <label>Temperature</label>
-            <input type="number" id="sTemp" value="0.7" min="0" max="2" step="0.05" />
-            <p class="hint">0 = 精确，1 = 均衡，2 = 创意</p>
-          </div>
-        </div>
-        <div class="field">
-          <label>系统提示词 (System Prompt)</label>
-          <textarea id="sSystemPrompt" placeholder="可选，在此描述 AI 的角色与行为规范…" rows="3"></textarea>
-        </div>
-        <div id="connAlert"></div>
-      </div>
-
-      <!-- Tools tab -->
-      <div id="tabTools" hidden>
-        <div class="toggle-row">
-          <div>
-            <div class="toggle-label">联网搜索</div>
-            <div class="toggle-hint">自动检测问题是否需要实时信息后搜索</div>
-          </div>
-          <select id="sWebSearch" style="width:110px">
-            <option value="auto">自动</option>
-            <option value="true">总是</option>
-            <option value="false">禁用</option>
-          </select>
-        </div>
-        <div class="toggle-row">
-          <div>
-            <div class="toggle-label">默认开启记忆库检索</div>
-            <div class="toggle-hint">每次对话自动从向量库召回相关片段</div>
-          </div>
-          <label class="toggle">
-            <input type="checkbox" id="sRag" />
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-      </div>
-
-      <!-- Memory tab -->
-      <div id="tabMemory" hidden>
-        <div class="field">
-          <label>内容 (必填)</label>
-          <textarea id="mText" placeholder="粘贴需要 AI 长期记住的内容…" rows="5"></textarea>
-        </div>
-        <div class="grid-2">
-          <div class="field">
-            <label>标题 (可选)</label>
-            <input type="text" id="mTitle" placeholder="例如：项目背景" />
-          </div>
-          <div class="field">
-            <label>来源 (可选)</label>
-            <input type="text" id="mSource" placeholder="例如：notion/文档" />
-          </div>
-        </div>
-        <button class="btn-primary" onclick="addMemory()" style="margin-top:4px">+ 添加到记忆库</button>
-        <div id="memAlert"></div>
-        <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
-          <p style="font-size:12px;color:var(--muted);line-height:1.8">
-            记忆库使用本地 FAISS 向量索引，数据保存在 <code style="font-size:11px">./data/faiss.index</code>。
-            首次使用时会自动下载嵌入模型（约 100 MB）。
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <div class="modal-footer">
-      <button id="testConnBtn" class="btn-secondary" onclick="testConn()">测试连接</button>
-      <button class="btn-primary" onclick="saveSettings()">保存</button>
-    </div>
-  </div>
-</div>
+</div><!-- #app -->
+</div><!-- #frame -->
 
 <!-- ── Conversation Settings Modal ──────────────────────────────────────────── -->
 <div id="convSettingsModal" class="modal-overlay" style="display:none"
@@ -1174,6 +1480,7 @@ const S = {
   streamContentEl:  null,
   streamReasonEl:   null,
   streamThinkBlock: null,
+  toolBlocksEl:     null,   // container for tool-call blocks
   streamBuf:        '',
   reasonBuf:        '',
 };
@@ -1197,9 +1504,12 @@ function relativeTime(ts) {
   return Math.floor(d/86400) + ' 天前';
 }
 
-function scrollBottom(smooth=true) {
+function scrollBottom(force=false) {
   const c = document.getElementById('msgContainer');
-  c.scrollTo({ top: c.scrollHeight, behavior: smooth ? 'smooth' : 'instant' });
+  if (!c) return;
+  // 如果用户已向上滑动（距底部超过 80px）且不是强制模式，不自动滚动
+  if (!force && c.scrollHeight - c.scrollTop - c.clientHeight > 80) return;
+  c.scrollTo({ top: c.scrollHeight, behavior: 'smooth' });
 }
 
 /* ── Markdown rendering ──────────────────────────────────────────────────── */
@@ -1432,7 +1742,7 @@ function renderMessages(messages) {
     if (m.role === 'system') continue;
     list.appendChild(buildMsgEl(m));
   }
-  scrollBottom(false);
+  scrollBottom(true);
 }
 
 function buildMsgEl(msg) {
@@ -1526,14 +1836,14 @@ async function sendMessage() {
   const options = {
     tool_web_search: wsActive ? 'true' : undefined,
     tool_rag: ragActive,
-    ...(deepThink ? { model: 'deepseek-reasoner' } : {}),
+    deep_think: deepThink || undefined,
   };
 
   // Append user bubble immediately
   const userEntry = { id: null, role: 'user', content: text };
   const userEl = buildMsgEl(userEntry);
   document.getElementById('msgList').appendChild(userEl);
-  scrollBottom();
+  scrollBottom(true);
 
   // Lock UI
   S.streaming = true;
@@ -1573,12 +1883,6 @@ window.__onStreamEvent = function(event) {
       row.innerHTML = `
         <div class="msg-avatar">A</div>
         <div class="msg-body">
-          <div class="think-block" hidden>
-            <div class="think-header" onclick="this.closest('.think-block').classList.toggle('open')">
-              <span class="think-arrow" style="margin-left:0;margin-right:4px">▶</span><span class="think-title">思考中…</span>
-            </div>
-            <div class="think-body"></div>
-          </div>
           <div class="msg-bubble">
             <div class="md stream-content"></div>
           </div>
@@ -1586,13 +1890,20 @@ window.__onStreamEvent = function(event) {
       document.getElementById('msgList').appendChild(row);
       S.streamMsgEl      = row;
       S.streamContentEl  = row.querySelector('.stream-content');
-      S.streamThinkBlock = row.querySelector('.think-block');
-      S.streamReasonEl   = row.querySelector('.think-body');
+      S.streamThinkBlock = null;  // created lazily on first reasoning_chunk
+      S.streamReasonEl   = null;
+      // tool blocks container: inserted before the bubble
+      const _toolsCont = document.createElement('div');
+      _toolsCont.className = 'tool-blocks-wrap';
+      row.querySelector('.msg-body').insertBefore(_toolsCont, row.querySelector('.msg-bubble'));
+      S.toolBlocksEl     = _toolsCont;
+      // hide bubble until first content arrives
+      row.querySelector('.msg-bubble').hidden = true;
       S.streamBuf        = '';
       S.reasonBuf        = '';
       S.streamModel      = event.model || '';
-      S.streamContentEl.innerHTML = '<span class="cursor">▋</span>';
-      scrollBottom();
+      S.streamContentEl.innerHTML = '';
+      scrollBottom(true);
       break;
     }
 
@@ -1625,11 +1936,105 @@ window.__onStreamEvent = function(event) {
       break;
     }
 
+    case 'tool_start': {
+      if (conv_id !== S.convId || !S.toolBlocksEl) break;
+      const _TOOL_META = {
+        web_search: {
+          label: '联网搜索',
+          icon: '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" width="13" height="13"><circle cx="5.5" cy="5.5" r="4"/><line x1="8.5" y1="8.5" x2="12" y2="12"/></svg>'
+        },
+        rag: {
+          label: '知识库检索',
+          icon: '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" width="13" height="13"><rect x="2" y="1" width="10" height="12" rx="1"/><line x1="4" y1="5" x2="10" y2="5"/><line x1="4" y1="8" x2="8" y2="8"/></svg>'
+        },
+      };
+      const _meta = _TOOL_META[event.tool] || { label: event.tool, icon: '⚙️' };
+      const _block = document.createElement('div');
+      _block.className = 'tool-block';
+      _block.dataset.tool = event.tool;
+      _block.innerHTML = `
+        <div class="tool-block-hd" onclick="this.closest('.tool-block').classList.toggle('open')">
+          <span class="tb-icon" style="opacity:.65;display:flex;align-items:center">${_meta.icon}</span>
+          <span class="tb-label">${_meta.label}</span>
+          <div style="width:11px;height:11px;border:1.5px solid rgba(255,255,255,.15);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0" class="tb-spinner"></div>
+          <span class="tb-arrow">▶</span>
+        </div>
+        <div class="tool-block-body"></div>`;
+      S.toolBlocksEl.appendChild(_block);
+      scrollBottom();
+      break;
+    }
+
+    case 'tool_done': {
+      if (conv_id !== S.convId || !S.toolBlocksEl) break;
+      const _b = S.toolBlocksEl.querySelector(`.tool-block[data-tool="${event.tool}"]`);
+      if (!_b) break;
+      _b.querySelector('.tb-spinner')?.remove();
+      const _hd = _b.querySelector('.tool-block-hd');
+      const _ok = document.createElement('span');
+      _ok.className = 'tb-ok';
+      _ok.innerHTML = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg>';
+      _hd.insertBefore(_ok, _hd.querySelector('.tb-arrow'));
+      if (event.results && event.results.length) {
+        const _body = _b.querySelector('.tool-block-body');
+        if (event.tool === 'web_search') {
+          const _q = esc(event.query || '');
+          const _cards = event.results.map((r, i) => {
+            const _url = r.url || '';
+            const _title = esc((r.title || '未知标题').slice(0, 46));
+            const _domain = _url.replace(/^https?:\/\//, '').split('/')[0].replace(/^www\./, '').split('?')[0];
+            return `<div class="tb-result-card" onclick="window.open(${JSON.stringify(_url)},'_blank')">
+              <span class="rc-idx">${i+1}.</span><span class="rc-title">${_title}</span>
+              <span class="rc-url">${esc(_domain || _url)}</span>
+            </div>`;
+          }).join('');
+          _body.innerHTML = `<div class="tb-query">搜索查询：<em>${_q}</em></div><div class="tb-results">${_cards}</div>`;
+        } else if (event.tool === 'rag') {
+          _body.innerHTML = `<div class="tb-query">已召回 <em>${event.results.length}</em> 个相关片段</div>`;
+        }
+        _b.classList.add('open');
+      }
+      scrollBottom();
+      break;
+    }
+
+    case 'tool_error': {
+      if (conv_id !== S.convId || !S.toolBlocksEl) break;
+      const _be = S.toolBlocksEl.querySelector(`.tool-block[data-tool="${event.tool}"]`);
+      if (_be) {
+        _be.querySelector('.tb-spinner')?.remove();
+        const _he = _be.querySelector('.tool-block-hd');
+        const _ee = document.createElement('span');
+        _ee.className = 'tb-err';
+        _ee.textContent = '✗';
+        _he.insertBefore(_ee, _he.querySelector('.tb-arrow'));
+        if (event.error) {
+          const _bdy = _be.querySelector('.tool-block-body');
+          _bdy.innerHTML = `<div class="tb-query" style="color:var(--danger)">${esc(event.error)}</div>`;
+          _be.classList.add('open');
+        }
+      }
+      break;
+    }
+
     case 'reasoning_chunk': {
-      if (conv_id !== S.convId || !S.streamReasonEl) break;
+      if (conv_id !== S.convId) break;
+      // Create think-block lazily so it appears AFTER any tool blocks already in the stream
+      if (!S.streamThinkBlock && S.toolBlocksEl) {
+        const _tb = document.createElement('div');
+        _tb.className = 'think-block';
+        _tb.innerHTML = `
+          <div class="think-header" onclick="this.closest('.think-block').classList.toggle('open')">
+            <span class="think-arrow" style="margin-left:0;margin-right:4px">▶</span><span class="think-title">思考中…</span>
+          </div>
+          <div class="think-body"></div>`;
+        S.toolBlocksEl.appendChild(_tb);
+        S.streamThinkBlock = _tb;
+        S.streamReasonEl   = _tb.querySelector('.think-body');
+      }
+      if (!S.streamReasonEl) break;
       S.reasonBuf += event.text;
       S.streamReasonEl.textContent = S.reasonBuf;
-      if (S.streamThinkBlock) S.streamThinkBlock.hidden = false;
       scrollBottom();
       break;
     }
@@ -1638,6 +2043,9 @@ window.__onStreamEvent = function(event) {
       if (conv_id !== S.convId || !S.streamContentEl) break;
       // Remove status chip once content starts
       S.streamMsgEl?.querySelector('.status-chip')?.remove();
+      // Show bubble on first chunk
+      const _bubble = S.streamMsgEl?.querySelector('.msg-bubble');
+      if (_bubble && _bubble.hidden) _bubble.hidden = false;
       S.streamBuf += event.text;
       // 流式实时 markdown 渲染（用轻量 streamRenderer，跳过 hljs）
       const _renderFn = window._markedStream || (t => '<pre>' + esc(t) + '</pre>');
@@ -1718,6 +2126,7 @@ function _finalizeStream(usage, model) {
   S.streamContentEl  = null;
   S.streamThinkBlock = null;
   S.streamReasonEl   = null;
+  S.toolBlocksEl     = null;
   document.getElementById('preStreamStatus')?.remove();
   S.smoothBuf        = '';
   S.reasonBuf        = '';
@@ -1775,17 +2184,18 @@ function _onProviderChange(pid) {
   keyInput.disabled = isOllama;
   keyHint.style.display = isOllama ? '' : 'none';
   if (isOllama) keyInput.value = '';
-  // 深思按钮：仅在 DeepSeek 提供商时显示
+  // 深思按钮：支持原生思考模式的厂商显示
+  const _THINK_VENDORS = new Set(['deepseek', 'openai', 'qwen', 'gemini']);
   const dtBtn = document.getElementById('deepThinkBtn');
   if (dtBtn) {
-    dtBtn.style.display = isDeepSeek ? '' : 'none';
-    if (!isDeepSeek) dtBtn.classList.remove('active');
+    dtBtn.style.display = _THINK_VENDORS.has(pid) ? '' : 'none';
+    if (!_THINK_VENDORS.has(pid)) dtBtn.classList.remove('active');
   }
 }
 
 function _setPickerDisplay(pid, model) {
   document.getElementById('mpDot').style.background = PROVIDER_COLORS[pid] || '#8b949e';
-  document.getElementById('mpLabel').textContent = (PROVIDER_NAMES[pid] || pid) + ' · ' + model;
+  document.getElementById('mpLabel').textContent = PROVIDER_NAMES[pid] || pid;
 }
 
 async function openSettings() {
@@ -1802,62 +2212,143 @@ async function openSettings() {
   document.getElementById('sSystemPrompt').value = cfg.system_prompt || '';
   document.getElementById('sWebSearch').value    = cfg.tool_web_search || 'auto';
   document.getElementById('sRag').checked        = !!cfg.tool_rag;
+  const _engine = cfg.tool_web_search_engine || 'ddg';
+  _pickEngine(_engine);
+  document.getElementById('sTavilyKey').value    = cfg.tool_tavily_key || '';
+  document.getElementById('sBingKey').value      = cfg.tool_bing_key   || '';
+  document.getElementById('sBraveKey').value     = cfg.tool_brave_key  || '';
+  document.getElementById('sSerpKey').value      = cfg.tool_serp_key   || '';
   document.getElementById('connAlert').innerHTML      = '';
+  const _cat = document.getElementById('connToolAlert');
+  if (_cat) _cat.innerHTML = '';
   document.getElementById('fetchModelsStatus').innerHTML = '';
-  switchTab('api', document.querySelector('.modal-tab.active'));
-  document.getElementById('settingsModal').style.display = 'flex';
+  // 默认选中第一个子菜单
+  const firstNav = document.querySelector('#sbPanelSettings .sp-nav-item');
+  switchSettingsTab('api', firstNav);
+  selectSidebarPanel('settings');
 }
 
 function closeSettings() {
   closeModelPicker();
-  document.getElementById('settingsModal').style.display = 'none';
+  selectSidebarPanel('conv');
 }
 
-function switchTab(name, btn) {
-  document.querySelectorAll('.modal-tab').forEach(b => b.classList.remove('active'));
+function selectSidebarPanel(id) {
+  document.getElementById('sbPanelConv').style.display     = id === 'conv'     ? '' : 'none';
+  document.getElementById('sbPanelSettings').style.display = id === 'settings' ? '' : 'none';
+  // main 区切换
+  const sv = document.getElementById('settingsView');
+  const ch = document.getElementById('chatView');
+  if (id === 'settings') {
+    sv.classList.add('visible');
+    if (ch) ch.style.display = 'none';
+  } else {
+    sv.classList.remove('visible');
+    if (ch) ch.style.display = '';
+  }
+  // 同步 icon bar 激活状态
+  document.querySelectorAll('#iconBar .ib-btn[data-panel]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.panel === id);
+  });
+}
+
+function switchSettingsTab(name, btn) {
+  // 导航项选中状态
+  document.querySelectorAll('#sbPanelSettings .sp-nav-item').forEach(b => b.classList.remove('active'));
   btn?.classList.add('active');
+  // 标题
+  const titles = { api: 'API 配置', tools: '工具', memory: '知识库' };
+  const hdr = document.getElementById('svHeader');
+  if (hdr) hdr.textContent = titles[name] || name;
+  // 内容面板
   document.getElementById('tabApi').hidden    = name !== 'api';
   document.getElementById('tabTools').hidden  = name !== 'tools';
   document.getElementById('tabMemory').hidden = name !== 'memory';
+  // 连接/保存按鈕：api tab 才显示测试连接，memory tab 隐藏整个footer
+  const footer = document.querySelector('.sv-footer');
+  if (footer) footer.style.display = name === 'memory' ? 'none' : '';
+  const testConnBtn = document.getElementById('testConnBtn');
+  if (testConnBtn) testConnBtn.style.display = name === 'api' ? '' : 'none';
 }
 
+// 兼容旧调用名
+function switchTab(name, btn) { switchSettingsTab(name, btn); }
+
 /* ── Model picker panel ───────────────────────────────────────────────────── */
-function _buildPickerList(filterText) {
+function _buildPickerList() {
   const list = document.getElementById('mpList');
   list.innerHTML = '';
-  const ft = (filterText || '').toLowerCase();
-  for (const [pid, presets] of Object.entries(PRESET_MODELS)) {
-    const extra   = _fetchedModels[pid] || [];
-    const all     = [...new Set([...presets, ...extra])];
-    const matches = ft ? all.filter(m => m.toLowerCase().includes(ft)) : all;
-    if (!matches.length && !['ollama','custom'].includes(pid)) continue;
-    const hdr = document.createElement('div');
-    hdr.className = 'mp-provider-hdr';
-    hdr.innerHTML = `<span class="mp-provider-hdr-dot" style="background:${PROVIDER_COLORS[pid]}"></span>`
-                  + `<span>${PROVIDER_NAMES[pid]}</span>`
-                  + `<span style="margin-left:auto;opacity:.45;font-weight:400">${matches.length}</span>`;
-    list.appendChild(hdr);
-    if (!matches.length) {
-      const hint = document.createElement('div');
-      hint.style.cssText = 'padding:3px 28px 8px;font-size:12px;color:var(--muted)';
-      hint.textContent   = pid === 'ollama' ? '请先点击"验证并刷新"获取本地模型' : '点击"验证并刷新"可获取完整列表';
-      list.appendChild(hint);
-      continue;
-    }
-    const curModel = document.getElementById('sModel').value;
-    const curPid   = document.getElementById('sPickedProvider').value;
-    for (const m of matches) {
-      const row = document.createElement('div');
-      row.className   = 'mp-model-row' + (m === curModel && pid === curPid ? ' active' : '');
-      row.textContent = m;
-      row.dataset.pid = pid; row.dataset.model = m;
-      row.onclick = () => _pickFromPicker(pid, m);
-      list.appendChild(row);
-    }
+  const curPid = document.getElementById('sPickedProvider').value;
+  for (const [pid] of Object.entries(PRESET_MODELS)) {
+    const row = document.createElement('div');
+    row.className = 'mp-provider-row' + (pid === curPid ? ' active' : '');
+    row.innerHTML = `<span class="mp-provider-hdr-dot" style="background:${PROVIDER_COLORS[pid]}"></span>`
+                  + `<span>${PROVIDER_NAMES[pid]}</span>`;
+    row.onclick = () => {
+      const firstModel = (PRESET_MODELS[pid] || [])[0] || '';
+      _pickFromPicker(pid, firstModel);
+    };
+    list.appendChild(row);
   }
 }
 
-function filterModels(val) { _buildPickerList(val); }
+function filterModels() {} // no-op kept for compat
+
+/* ── Search engine picker ─────────────────────────────────────────────────── */
+const SEARCH_ENGINES = {
+  ddg:    { name: 'DuckDuckGo', color: '#ff6900', keyId: null,         hint: '免费，无需配置',       rowId: null },
+  tavily: { name: 'Tavily',     color: '#0088cc', keyId: 'sTavilyKey', hint: '需要 API Key',        rowId: 'seKeyTavily' },
+  bing:   { name: 'Bing',       color: '#008373', keyId: 'sBingKey',   hint: '需要 Azure Key',      rowId: 'seKeyBing' },
+  brave:  { name: 'Brave',      color: '#FB542B', keyId: 'sBraveKey',  hint: '需要 API Key',        rowId: 'seKeyBrave' },
+  serp:   { name: 'SerpAPI',    color: '#f6c544', keyId: 'sSerpKey',   hint: '需要 API Key',        rowId: 'seKeySerp' },
+};
+
+function _buildSepList() {
+  const list   = document.getElementById('sepList');
+  const curVal = document.getElementById('sWebEngine').value;
+  list.innerHTML = '';
+  for (const [id, eng] of Object.entries(SEARCH_ENGINES)) {
+    const row = document.createElement('div');
+    row.className = 'mp-provider-row' + (id === curVal ? ' active' : '');
+    row.innerHTML = `<span class="mp-provider-hdr-dot" style="background:${eng.color}"></span>`
+                  + `<span>${eng.name}</span>`
+                  + `<span class="mp-row-hint">${eng.hint}</span>`;
+    row.onclick = () => _pickEngine(id);
+    list.appendChild(row);
+  }
+}
+
+function _pickEngine(id) {
+  const eng = SEARCH_ENGINES[id];
+  if (!eng) return;
+  document.getElementById('sWebEngine').value       = id;
+  document.getElementById('sepDot').style.background = eng.color;
+  document.getElementById('sepLabel').textContent    = eng.name;
+  // show/hide key rows
+  for (const [eid, e] of Object.entries(SEARCH_ENGINES)) {
+    if (e.rowId) document.getElementById(e.rowId).style.display = eid === id ? '' : 'none';
+  }
+  closeSepPicker();
+}
+
+function toggleSepPicker(e) {
+  e.stopPropagation();
+  const panel   = document.getElementById('sepPanel');
+  const trigger = document.getElementById('sepTrigger');
+  if (panel.classList.contains('open')) {
+    closeSepPicker();
+  } else {
+    _buildSepList();
+    panel.classList.add('open');
+    trigger.classList.add('open');
+    setTimeout(() => document.getElementById('sepList').scrollTop = 0, 10);
+  }
+}
+
+function closeSepPicker() {
+  document.getElementById('sepPanel')?.classList.remove('open');
+  document.getElementById('sepTrigger')?.classList.remove('open');
+}
 
 function _pickFromPicker(pid, model) {
   document.getElementById('sModel').value          = model;
@@ -1875,8 +2366,7 @@ function toggleModelPicker(e) {
   if (panel.classList.contains('open')) {
     closeModelPicker();
   } else {
-    _buildPickerList('');
-    document.getElementById('mpSearch').value = '';
+    _buildPickerList();
     panel.classList.add('open');
     trigger.classList.add('open');
     setTimeout(() => document.getElementById('mpList').scrollTop = 0, 10);
@@ -1923,7 +2413,10 @@ async function fetchAndShowModels() {
 function togglePw(id, btn) {
   const el = document.getElementById(id);
   el.type = el.type === 'password' ? 'text' : 'password';
-  btn.textContent = el.type === 'password' ? '显' : '隐';
+  const isHidden = el.type === 'password';
+  btn.innerHTML = isHidden
+    ? `<svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M8 2.5C4 2.5 1 8 1 8s3 5.5 7 5.5S15 8 15 8 12 2.5 8 2.5zm0 9A3.5 3.5 0 1 1 8 4.5a3.5 3.5 0 0 1 0 7zm0-5.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>`
+    : `<svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M13.36 2.64a.75.75 0 0 0-1.06 0L2.64 12.3a.75.75 0 1 0 1.06 1.06l1.28-1.28A7.7 7.7 0 0 0 8 13.5c4 0 7-5.5 7-5.5a13.1 13.1 0 0 0-2.4-2.98l1.76-1.76a.75.75 0 0 0 0-1.06zM8 11a3 3 0 0 1-2.6-1.5l1.14-1.14a1.5 1.5 0 0 0 2 2L9.5 9.22A3 3 0 0 1 8 11zm5.6-3S11 10.5 8 10.5c-.52 0-1-.07-1.47-.2l1.12-1.12a1.5 1.5 0 0 0 1.87-1.87l1.12-1.12c.8.7 1.48 1.55 1.96 2.31zM8 4.5c.52 0 1 .07 1.47.2L8.35 5.82A1.5 1.5 0 0 0 6.48 7.7L5.36 8.82A3 3 0 0 1 8 4.5z"/></svg>`;
 }
 
 async function testConn() {
@@ -1947,6 +2440,21 @@ async function testConn() {
   setTimeout(() => { btn.textContent = '测试连接'; btn.disabled = false; }, 2000);
 }
 
+async function testWebSearch() {
+  const btn = document.getElementById('testWebBtn');
+  btn.textContent = '测试中…';
+  btn.disabled    = true;
+  await _doSaveConfig(false);
+  const res = await api().test_web_search();
+  const al  = document.getElementById('connToolAlert');
+  if (res.ok) {
+    al.innerHTML = `<div class="alert alert-ok">✓ ${esc(res.message || '联网可用')}</div>`;
+  } else {
+    al.innerHTML = `<div class="alert alert-err">✗ ${esc(res.message || '联网失败')}</div>`;
+  }
+  setTimeout(() => { btn.textContent = '测试联网'; btn.disabled = false; }, 2000);
+}
+
 async function saveSettings() { await _doSaveConfig(true); }
 
 async function _doSaveConfig(close=true) {
@@ -1961,8 +2469,13 @@ async function _doSaveConfig(close=true) {
     model:             document.getElementById('sModel').value.trim(),
     temperature:       parseFloat(document.getElementById('sTemp').value),
     system_prompt:     document.getElementById('sSystemPrompt').value.trim(),
-    tool_web_search:   document.getElementById('sWebSearch').value,
-    tool_rag:          document.getElementById('sRag').checked,
+    tool_web_search:        document.getElementById('sWebSearch').value,
+    tool_web_search_engine: document.getElementById('sWebEngine').value,
+    tool_tavily_key:        document.getElementById('sTavilyKey').value.trim(),
+    tool_bing_key:          document.getElementById('sBingKey').value.trim(),
+    tool_brave_key:         document.getElementById('sBraveKey').value.trim(),
+    tool_serp_key:          document.getElementById('sSerpKey').value.trim(),
+    tool_rag:               document.getElementById('sRag').checked,
   };
   await api().save_config(updates);
   updateModelSelector(updates.model);
@@ -2012,7 +2525,7 @@ function closeModelDropdown() {
 }
 
 // Close pickers when clicking outside
-document.addEventListener('click', () => { closeModelDropdown(); closeModelPicker(); });
+document.addEventListener('click', () => { closeModelDropdown(); closeModelPicker(); closeSepPicker(); });
 
 /* ── Memory tab ──────────────────────────────────────────────────────────── */
 async function addMemory() {
@@ -2023,7 +2536,7 @@ async function addMemory() {
   if (!text) { al.innerHTML = '<div class="alert alert-err">请输入内容</div>'; return; }
   const res = await api().add_to_memory(text, title, source);
   if (res.ok) {
-    al.innerHTML = '<div class="alert alert-ok">✓ 已添加到记忆库</div>';
+    al.innerHTML = '<div class="alert alert-ok">✓ 已添加到知识库</div>';
     document.getElementById('mText').value  = '';
     document.getElementById('mTitle').value = '';
     document.getElementById('mSource').value = '';
@@ -2066,12 +2579,24 @@ async function init() {
   }
 }
 
+/* ── Titlebar controls ──────────────────────────────────────────────────── */
+let _tbMaximized = false;
+function tbToggleMax() {
+  _tbMaximized = !_tbMaximized;
+  api()?.win_maximize();
+  const btn = document.getElementById('tbMaxBtn');
+  if (btn) {
+    btn.innerHTML = _tbMaximized
+      ? `<svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1"><rect x=".5" y="2.5" width="7" height="7"/><path d="M2.5.5h7v7"/></svg>`
+      : `<svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1"><rect x=".5" y=".5" width="9" height="9"/></svg>`;
+  }
+}
+
 if (window.pywebview) {
   init();
 } else {
   window.addEventListener('pywebviewready', init);
 }
 </script>
-<script src="ime_zh.js"></script>
 </body>
 </html>

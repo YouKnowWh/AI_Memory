@@ -20,7 +20,7 @@ from typing import Any, Dict
 # 内置工具实现
 # ──────────────────────────────────────────────────────────────
 
-def _web_search(args: Dict[str, Any]) -> Any:
+def _web_search_ddg(args: Dict[str, Any]) -> Any:
     """DuckDuckGo 文本搜索，返回前 N 条摘要。"""
     try:
         from ddgs import DDGS
@@ -46,6 +46,126 @@ def _web_search(args: Dict[str, Any]) -> Any:
             })
 
     return results if results else {"message": "未找到结果"}
+
+
+def _web_search_tavily(args: Dict[str, Any]) -> Any:
+    """Tavily Search API，返回前 N 条结果。需配置 API Key。"""
+    import httpx
+
+    api_key: str = args.get("api_key", "").strip()
+    if not api_key:
+        return {"error": "Tavily API Key 未配置，请在 设置 > 工具 中填写"}
+
+    query: str = args.get("query", "")
+    max_results: int = int(args.get("max_results", 5))
+
+    if not query:
+        return {"error": "缺少参数 query"}
+
+    try:
+        resp = httpx.post(
+            "https://api.tavily.com/search",
+            json={"api_key": api_key, "query": query, "max_results": max_results},
+            timeout=15.0,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        results = [
+            {
+                "title":   r.get("title", ""),
+                "snippet": r.get("content", ""),
+                "url":     r.get("url", ""),
+            }
+            for r in data.get("results", [])
+        ]
+        return results if results else {"message": "未找到结果"}
+    except Exception as exc:
+        return {"error": f"Tavily 搜索失败: {exc}"}
+
+
+def _web_search_bing(args: Dict[str, Any]) -> Any:
+    """Bing Web Search API（Azure Cognitive Services）。"""
+    import httpx
+    api_key: str = args.get("api_key", "").strip()
+    if not api_key:
+        return {"error": "Bing API Key 未配置，请在 设置 > 工具 中填写"}
+    query: str = args.get("query", "")
+    max_results: int = int(args.get("max_results", 5))
+    if not query:
+        return {"error": "缺少参数 query"}
+    try:
+        resp = httpx.get(
+            "https://api.bing.microsoft.com/v7.0/search",
+            headers={"Ocp-Apim-Subscription-Key": api_key},
+            params={"q": query, "count": max_results, "mkt": "zh-CN"},
+            timeout=15.0,
+        )
+        resp.raise_for_status()
+        items = resp.json().get("webPages", {}).get("value", [])
+        return [{"title": r.get("name", ""), "snippet": r.get("snippet", ""), "url": r.get("url", "")} for r in items] or {"message": "未找到结果"}
+    except Exception as exc:
+        return {"error": f"Bing 搜索失败: {exc}"}
+
+
+def _web_search_brave(args: Dict[str, Any]) -> Any:
+    """Brave Search API。"""
+    import httpx
+    api_key: str = args.get("api_key", "").strip()
+    if not api_key:
+        return {"error": "Brave Search API Key 未配置，请在 设置 > 工具 中填写"}
+    query: str = args.get("query", "")
+    max_results: int = int(args.get("max_results", 5))
+    if not query:
+        return {"error": "缺少参数 query"}
+    try:
+        resp = httpx.get(
+            "https://api.search.brave.com/res/v1/web/search",
+            headers={"X-Subscription-Token": api_key, "Accept": "application/json"},
+            params={"q": query, "count": max_results},
+            timeout=15.0,
+        )
+        resp.raise_for_status()
+        items = resp.json().get("web", {}).get("results", [])
+        return [{"title": r.get("title", ""), "snippet": r.get("description", ""), "url": r.get("url", "")} for r in items] or {"message": "未找到结果"}
+    except Exception as exc:
+        return {"error": f"Brave 搜索失败: {exc}"}
+
+
+def _web_search_serp(args: Dict[str, Any]) -> Any:
+    """SerpAPI（Google 搜索）。"""
+    import httpx
+    api_key: str = args.get("api_key", "").strip()
+    if not api_key:
+        return {"error": "SerpAPI Key 未配置，请在 设置 > 工具 中填写"}
+    query: str = args.get("query", "")
+    max_results: int = int(args.get("max_results", 5))
+    if not query:
+        return {"error": "缺少参数 query"}
+    try:
+        resp = httpx.get(
+            "https://serpapi.com/search",
+            params={"api_key": api_key, "q": query, "engine": "google", "num": max_results, "hl": "zh-cn"},
+            timeout=15.0,
+        )
+        resp.raise_for_status()
+        items = resp.json().get("organic_results", [])
+        return [{"title": r.get("title", ""), "snippet": r.get("snippet", ""), "url": r.get("link", "")} for r in items] or {"message": "未找到结果"}
+    except Exception as exc:
+        return {"error": f"SerpAPI 搜索失败: {exc}"}
+
+
+def _web_search(args: Dict[str, Any]) -> Any:
+    """联网搜索统一入口，根据 engine 参数路由到具体实现。"""
+    engine = args.get("engine", "ddg")
+    if engine == "tavily":
+        return _web_search_tavily(args)
+    if engine == "bing":
+        return _web_search_bing(args)
+    if engine == "brave":
+        return _web_search_brave(args)
+    if engine == "serp":
+        return _web_search_serp(args)
+    return _web_search_ddg(args)
 
 
 # 安全求值：仅允许四则运算和幂运算

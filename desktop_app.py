@@ -249,8 +249,26 @@ class AppApi:
         ok = self._core.save_config(updates)
         return {"ok": ok}
 
+    # ── 窗口控制 ─────────────────────────────────────────────────────────
+
+    def win_minimize(self) -> None:
+        webview.windows[0].minimize()
+
+    def win_maximize(self) -> None:
+        w = webview.windows[0]
+        if w.maximized:
+            w.restore()
+        else:
+            w.maximize()
+
+    def win_close(self) -> None:
+        webview.windows[0].destroy()
+
     def test_connection(self) -> Dict:
         return self._core.test_connection()
+
+    def test_web_search(self) -> Dict:
+        return self._core.test_web_search()
 
     def list_upstream_models(self) -> List[str]:
         models = self._core.list_upstream_models()
@@ -394,8 +412,25 @@ def _setup_ime() -> None:
     print("[AI Memory] IME: JS 内置拼音  切换快捷键: Ctrl+Space")
 
 
+def _apply_dark_titlebar(*_) -> None:
+    """将 pywebview 窗口标题栏设为深色，与应用主题一致 (Windows 10 22H2+ / Windows 11)。"""
+    try:
+        import ctypes, time
+        time.sleep(0.15)  # 等待窗口句柄完全就绪
+        hwnd = ctypes.windll.user32.FindWindowW(None, "AI Memory")
+        if hwnd:
+            DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+            val = ctypes.c_int(1)
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE,
+                ctypes.byref(val), ctypes.sizeof(val),
+            )
+    except Exception:
+        pass
+
+
 def _get_system_scale() -> float:
-    """尝试读取系统 DPI/缩放比例，失败时返回 1.25。"""
+    """尝试读取系统 DPI/缩放比例，失败时返回 1.0。"""
     # Windows：通过 ctypes 读取物理 DPI
     if sys.platform == "win32":
         try:
@@ -463,7 +498,7 @@ def main() -> None:
     _start_file_server(CLIENT_DIR, port)
     print(f"[AI Memory] 本地文件服务已启动: http://127.0.0.1:{port}/")
 
-    scale = _get_system_scale()
+    scale = 1.0
     print(f"[AI Memory] 系统缩放比例: {scale}")
 
     api = AppApi()
@@ -472,15 +507,16 @@ def main() -> None:
         title="AI Memory",
         url=f"http://127.0.0.1:{port}/?scale={scale}",
         js_api=api,
-        width=1600,
-        height=1000,
+        width=1280,
+        height=720,
         min_size=(800, 600),
         background_color="#0d1117",
         text_select=True,
         zoomable=True,
+        frameless=True,
     )
 
-    webview.start(debug=False, gui="qt")
+    webview.start(debug=False, gui="edgechromium")
 
 
 if __name__ == "__main__":
